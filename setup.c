@@ -1,6 +1,18 @@
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   setup.c                                            :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: jgalian- <jgalian-@student.42.fr>          +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2021/09/22 11:45:48 by jgalian-          #+#    #+#             */
+/*   Updated: 2021/09/24 13:10:59 by jgalian-         ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
+
 #include "philo.h"
 
-void	check_argument_errors(int argc, char *argv[])
+short	check_argument_errors(int argc, char *argv[])
 {
 	short	i;
 	short	j;
@@ -8,7 +20,7 @@ void	check_argument_errors(int argc, char *argv[])
 	if (argc < 5 || argc > 6)
 	{
 		printf("This program needs 4 or 5 arguments to work\n");
-		exit(-1);
+		return (-1);
 	}
 	i = 0;
 	while (++i < argc)
@@ -19,91 +31,72 @@ void	check_argument_errors(int argc, char *argv[])
 			if (ft_isdigit(argv[i][j]) == FALSE)
 			{
 				printf("Arguments should have only digits\n");
-				exit(-1);
+				return (-1);
 			}
 			j++;
 		}
 	}
+	return (0);
 }
 
-t_args	*setup_args_struct(char *argv[])
+short	setup_args_struct(char *argv[], t_args *args)
 {
-	t_args	*ret;
+	long long int	num;
+	long long int	die;
+	long long int	eat;
+	long long int	sleep;
+	long long int	times;
 
-	ret = malloc(sizeof(t_args));
-	if (!ret)
-	{
-		printf("Error during memory allocation\n");
-		exit(-1);
-	}
-	ret->n_philos = ft_atoi(argv[1]);
-	ret->time_to_die = ft_atoi(argv[2]); // en ml segundos
-	ret->time_to_eat = ft_atoi(argv[3]);
-	ret->time_to_sleep = ft_atoi(argv[4]);
-	ret->times_must_eat = 0;
+	num = ft_atoi(argv[1]);
+	die = ft_atoi(argv[2]);
+	eat = ft_atoi(argv[3]);
+	sleep = ft_atoi(argv[4]);
 	if (argv[5])
-		ret->times_must_eat = ft_atoi(argv[5]);
-	ret->start_time = get_time(ret);
-	ret->philo_died = FALSE;
-	ret->n_philos_done_eaten = FALSE;
-	ret->philos = NULL;
-	ret->forks = NULL;
-	ret->m_forks = NULL;
-	ret->m_philo_died = NULL;
-	ret->m_print_status = NULL;
-	return (ret);
+		times = ft_atoi(argv[5]);
+	else
+		times = 0;
+	if (num < 1 || num > 200 || die < 1 || eat < 1 || sleep < 1 || times < 0)
+	{
+		printf("Incorrect argument value\n");
+		return (-1);
+	}
+	args->n_philos = (uint64_t)num;
+	args->times_must_eat = (uint64_t)times;
+	init_values_args_struct(args, die, eat, sleep);
+	return (0);
 }
 
-void	alloc_memory(t_args *args)
+void	init_values_args_struct(t_args *args, long long int die,
+	long long int eat, long long int sleep)
 {
+	args->time_to_die = (uint64_t)die;
+	args->time_to_eat = (uint64_t)eat;
+	args->time_to_sleep = (uint64_t)sleep;
+	args->start_time = get_time();
+	args->is_done = 0;
+	args->pos = 0;
+	args->philos = NULL;
+	pthread_mutex_init(&args->m_done_eating, NULL);
+	pthread_mutex_init(&args->m_print, NULL);
+	pthread_mutex_init(&args->m_pos, NULL);
+}
+
+short	setup_philos_struct(t_args *args)
+{
+	short	i;
 
 	args->philos = malloc(sizeof(t_philo) * args->n_philos);
-	args->forks = malloc(sizeof(unsigned short) * args->n_philos);
-	args->m_forks = malloc(sizeof(pthread_mutex_t) * args->n_philos);
-	args->m_philo_died = malloc(sizeof(pthread_mutex_t));
-	args->m_done_eaten = malloc(sizeof(pthread_mutex_t));
-	args->m_print_status = malloc(sizeof(pthread_mutex_t));
-	if (!args->philos || !args->forks || !args->m_forks || !args->m_philo_died || !args->m_done_eaten || !args->m_print_status)
-		print_error(args, "Error during memory allocation\n");
-}
-
-void	setup_philos_struct(t_args *args)
-{
-	short	i;
-
+	if (!args->philos)
+	{
+		printf("Error during memory allocation\n");
+		return (-1);
+	}
 	i = -1;
 	while (++i < args->n_philos)
 	{
-		args->philos[i].pos = i + 1;
-		args->philos[i].parent = args;
 		args->philos[i].times_has_eaten = 0;
-		args->philos[i].r_fork = &args->forks[i];
-		if (i == 0)
-			args->philos[i].l_fork = &args->forks[args->n_philos - 1];
-		else
-			args->philos[i].l_fork = &args->forks[i - 1];
-		args->philos[i].m_r_fork = &args->m_forks[i];
-		if (i == 0)
-			args->philos[i].m_l_fork = &args->m_forks[args->n_philos - 1];
-		else
-			args->philos[i].m_l_fork = &args->m_forks[i - 1];
-		*(args)->philos[i].r_fork = DOWN;
-		*(args)->philos[i].l_fork = DOWN;
+		args->philos[i].time_last_meal = args->start_time;
+		pthread_mutex_init(&args->philos[i].fork, NULL);
 	}
+	return (0);
 }
-
-void	init_mutex(t_args *args)
-{
-	short	i;
-
-	i = -1;
-	while (++i < args->n_philos)
-	{
-		pthread_mutex_init(args->philos[i].m_r_fork, NULL);
-		pthread_mutex_init(args->philos[i].m_l_fork, NULL);
-	}
-	pthread_mutex_init(args->m_philo_died, NULL);
-	pthread_mutex_init(args->m_done_eaten, NULL);
-	pthread_mutex_init(args->m_print_status, NULL);
-}
-
